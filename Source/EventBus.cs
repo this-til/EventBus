@@ -25,10 +25,10 @@ public class EventBus : IEventBus {
     }
 
     public void put(object registered) {
-        log.Info($"开始注册事件监听者，监听者:{registered}，监听者类型：{registered.GetType()}");
+        log.Info($"开始注册事件监听者 监听者:{registered},监听者类型:{registered.GetType()}");
         for (var index = eventRegistrantFilterList.Count - 1; index >= 0; index--) {
             if (eventRegistrantFilterList[index].isFilter(this, registered)) {
-                log.Info("事件监听被过滤掉了。");
+                log.Info("事件监听被过滤掉了.");
                 return;
             }
         }
@@ -72,7 +72,7 @@ public class EventBus : IEventBus {
                 }
             }
             if (newEventTrigger == null) {
-                log.Info($"监听方法被忽视了，方法:{methodInfo}");
+                log.Info($"监听方法被忽视了 方法:{methodInfo}");
                 continue;
             }
 
@@ -89,10 +89,10 @@ public class EventBus : IEventBus {
             if (needInsert) {
                 list.Add(newEventTrigger);
             }
-            log.Info($"监听方法注册成功，方法:{methodInfo}");
+            log.Info($"监听方法注册成功 方法:{methodInfo}");
             end: ;
         }
-        log.Info($"结束注册事件监听者，监听者:{registered}，监听者类型：{registered.GetType()}");
+        log.Info($"结束注册事件监听者 监听者:{registered},监听者类型:{registered.GetType()}");
     }
 
     public Event onEvent(Event @event) {
