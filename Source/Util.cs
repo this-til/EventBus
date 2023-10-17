@@ -1,7 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-
-namespace EventBus; 
+﻿namespace EventBus; 
 
 public static class EventTypeTool {
     public static readonly Dictionary<Type, List<Type>> types = new Dictionary<Type, List<Type>>();
@@ -30,5 +27,14 @@ public static class EventTypeTool {
             return list;
         }
         return _getParents(baseType, list, hasInterfaces);
+    }
+}
+
+public class SingletonPatternClass<T> where T : new() {
+    protected static T? instance;
+
+    public static T getInstance() => instance ??= new T();
+
+    protected SingletonPatternClass() {
     }
 }
