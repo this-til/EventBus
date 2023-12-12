@@ -1,5 +1,4 @@
 ﻿using System.Reflection;
-using System.Runtime.Versioning;
 
 namespace EventBus {
     public interface IEventBus {
@@ -52,6 +51,7 @@ namespace EventBus {
     public class EventBus : IEventBus {
         protected readonly HashSet<object> allRegistered = new HashSet<object>();
         protected readonly Dictionary<Type, List<IEventTrigger>> eventBus = new Dictionary<Type, List<IEventTrigger>>();
+        protected readonly Dictionary<Type, List<List<IEventTrigger>>> runTimeEventBus = new Dictionary<Type, List<List<IEventTrigger>>>();
         protected readonly HashSet<object> removeRegisteredSet = new HashSet<object>();
 
         protected ILogOut? log;
@@ -132,44 +132,50 @@ namespace EventBus {
                 }
                 removeRegisteredSet.Clear();
             }
-            List<Type> can = @event.GetType().getParents();
-            int canCount = can.Count;
-            for (var i = 0; i < canCount; i++) {
-                interrupt:
-                Type type = can[i];
-                if (eventBus.ContainsKey(type)) {
-                    List<IEventTrigger> arrayList = eventBus[type];
-                    if (arrayList.Count < 0) {
-                        continue;
+            if (!runTimeEventBus.TryGetValue(@event.GetType(), out var runTimeBus)) {
+                List<Type> can = @event.GetType().getParents();
+                runTimeBus = new List<List<IEventTrigger>>(can.Count);
+                foreach (var type in can) {
+                    if (!eventBus.TryGetValue(type, out var bus)) {
+                        bus = new List<IEventTrigger>();
+                        eventBus.Add(type, bus);
                     }
-                    int runCount = arrayList.Count;
-                    for (int ti = 0; ti < runCount; ti++) {
-                        try {
-                            arrayList[ti].invoke(@event);
-                        }
-                        catch (Exception e) {
-                            foreach (var eventExceptionHandle in eventBusRule.forEventExceptionHandle()) {
-                                ExceptionHandleType exceptionHandleType = eventExceptionHandle.doCatch(this, arrayList[ti], @event, e);
-                                switch (exceptionHandleType) {
-                                    case ExceptionHandleType.success:
-                                        goto success;
-                                    case ExceptionHandleType.success_interrupt:
-                                        goto interrupt;
-                                    case ExceptionHandleType.success_end:
-                                        goto end;
-                                    case ExceptionHandleType.@throw:
-                                        throw;
-                                    case ExceptionHandleType.skip:
-                                        continue;
-                                    default:
-                                        throw;
-                                }
+                    runTimeBus.Add(bus);
+                }
+                runTimeEventBus.Add(@event.GetType(), runTimeBus);
+            }
+
+            foreach (var bus in runTimeBus) {
+                interrupt:
+                if (bus.Count == 0) {
+                    continue;
+                }
+                foreach (var eventTrigger in bus) {
+                    try {
+                        eventTrigger.invoke(@event);
+                    }
+                    catch (Exception e) {
+                        foreach (var eventExceptionHandle in eventBusRule.forEventExceptionHandle()) {
+                            ExceptionHandleType exceptionHandleType = eventExceptionHandle.doCatch(this, eventTrigger, @event, e);
+                            switch (exceptionHandleType) {
+                                case ExceptionHandleType.success:
+                                    goto success;
+                                case ExceptionHandleType.success_interrupt:
+                                    goto interrupt;
+                                case ExceptionHandleType.success_end:
+                                    goto end;
+                                case ExceptionHandleType.@throw:
+                                    throw;
+                                case ExceptionHandleType.skip:
+                                    continue;
+                                default:
+                                    throw;
                             }
                         }
-                        success:
-                        if (!@event.isContinue()) {
-                            break;
-                        }
+                    }
+                    success:
+                    if (!@event.isContinue()) {
+                        break;
                     }
                 }
             }
@@ -213,7 +219,7 @@ namespace EventBus {
         public IEventBusRule getRule() => eventBusRule;
     }
 
-    /// <summary>
+    /*/// <summary>
     /// 单一类型事件触发器，它只能驱动一个对象作为监听者
     /// </summary>
     [EventSupplierExclude]
@@ -224,7 +230,7 @@ namespace EventBus {
         protected object? listenObj;
 
         protected readonly Type listenType;
-        protected Dictionary<Type, List<IEventTrigger>>? eventBus;
+        protected List<List<IEventTrigger>?>? eventBus;
 
         public SingleListenEventBus(Type type) {
             listenType = type;
@@ -236,7 +242,7 @@ namespace EventBus {
         protected void load() {
             getLog()?.Info($"SingleListenEventBus开始注册事件监听者 监听者类型:{listenType}");
 
-            eventBus = new Dictionary<Type, List<IEventTrigger>>();
+            eventBus = new List<List<IEventTrigger>?>();
             foreach (var methodInfo in listenType.GetMethods(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)) {
                 ParameterInfo[] parameterInfos = methodInfo.GetParameters();
                 if (parameterInfos.Length != 1) {
@@ -247,16 +253,17 @@ namespace EventBus {
                 }
                 EventAttribute? eventAttribute = methodInfo.GetCustomAttribute<EventAttribute>();
                 Type eventType = parameterInfos[0].ParameterType;
+                int eventTypeId = EventTypeTool.getTypeId(eventType);
 
                 foreach (var eventTriggerFilter in eventBusRule.forEventTriggerFilter()) {
                     if (eventTriggerFilter.isFilter(this, listenObj, listenType, eventType, methodInfo, eventAttribute)) {
                         goto end;
                     }
                 }
-
-                if (!eventBus.TryGetValue(eventType, out var list)) {
+                List<IEventTrigger>? list = eventBus[eventTypeId];
+                if (list is null) {
                     list = new List<IEventTrigger>();
-                    eventBus.Add(eventType, list);
+                    eventBus.Insert(eventTypeId, list);
                 }
 
                 IEventTrigger newEventTrigger = new SingleListenEventTrigger(this, methodInfo, eventAttribute);
@@ -300,44 +307,45 @@ namespace EventBus {
             }
             object oldListenType = listenObj;
 
-            List<Type> can = @event.GetType().getParents();
-            int canCount = can.Count;
+            int[] can = EventTypeTool.getTypeParentIds(@event.GetType()); //@event.GetType().getParents();
+            int canCount = can.Length;
             for (var i = 0; i < canCount; i++) {
                 interrupt:
-                Type type = can[i];
-                if (eventBus!.ContainsKey(type)) {
-                    List<IEventTrigger> arrayList = eventBus[type];
-                    if (arrayList.Count < 0) {
-                        continue;
+                int typeId = can[i];
+                List<IEventTrigger>? arrayList = typeId < eventBus!.Count ? eventBus[typeId] : null;
+                if (arrayList is null) {
+                    continue;
+                }
+                if (arrayList.Count < 0) {
+                    continue;
+                }
+                int runCount = arrayList.Count;
+                for (int ti = 0; ti < runCount; ti++) {
+                    try {
+                        arrayList[ti].invoke(@event);
                     }
-                    int runCount = arrayList.Count;
-                    for (int ti = 0; ti < runCount; ti++) {
-                        try {
-                            arrayList[ti].invoke(@event);
-                        }
-                        catch (Exception e) {
-                            foreach (var eventExceptionHandle in eventBusRule.forEventExceptionHandle()) {
-                                ExceptionHandleType exceptionHandleType = eventExceptionHandle.doCatch(this, arrayList[ti], @event, e);
-                                switch (exceptionHandleType) {
-                                    case ExceptionHandleType.success:
-                                        goto success;
-                                    case ExceptionHandleType.success_interrupt:
-                                        goto interrupt;
-                                    case ExceptionHandleType.success_end:
-                                        goto end;
-                                    case ExceptionHandleType.@throw:
-                                        throw;
-                                    case ExceptionHandleType.skip:
-                                        continue;
-                                    default:
-                                        throw;
-                                }
+                    catch (Exception e) {
+                        foreach (var eventExceptionHandle in eventBusRule.forEventExceptionHandle()) {
+                            ExceptionHandleType exceptionHandleType = eventExceptionHandle.doCatch(this, arrayList[ti], @event, e);
+                            switch (exceptionHandleType) {
+                                case ExceptionHandleType.success:
+                                    goto success;
+                                case ExceptionHandleType.success_interrupt:
+                                    goto interrupt;
+                                case ExceptionHandleType.success_end:
+                                    goto end;
+                                case ExceptionHandleType.@throw:
+                                    throw;
+                                case ExceptionHandleType.skip:
+                                    continue;
+                                default:
+                                    throw;
                             }
                         }
-                        success:
-                        if (!@event.isContinue()) {
-                            break;
-                        }
+                    }
+                    success:
+                    if (!@event.isContinue()) {
+                        break;
                     }
                 }
             }
@@ -402,5 +410,5 @@ namespace EventBus {
                 throw new NotImplementedException();
             }
         }
-    }
+    }*/
 }

@@ -1,6 +1,6 @@
 ﻿namespace EventBus {
     [AttributeUsage(AttributeTargets.Method, AllowMultiple = false, Inherited = true)]
-    public class EventAttribute : System.Attribute {
+    public class EventAttribute : Attribute {
         public EventAttributeType eventAttributeType;
 
         /// <summary>
