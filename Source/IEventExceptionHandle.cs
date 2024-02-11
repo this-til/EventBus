@@ -1,4 +1,6 @@
-﻿namespace EventBus {
+﻿using System;
+
+namespace EventBus {
     public interface IEventExceptionHandle {
         /// <summary>
         /// 进行抛出异常的处理

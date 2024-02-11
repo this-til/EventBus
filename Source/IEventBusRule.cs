@@ -1,4 +1,7 @@
-﻿namespace EventBus {
+﻿using System.Collections;
+using System.Collections.Generic;
+
+namespace EventBus {
     /// <summary>
     /// 事件的规则
     /// </summary>

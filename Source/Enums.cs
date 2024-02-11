@@ -1,4 +1,6 @@
-﻿namespace EventBus {
+﻿using System;
+
+namespace EventBus {
     [Flags]
     public enum EventAttributeType {
         /// <summary>
