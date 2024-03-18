@@ -1,5 +1,8 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Text;
+using log4net;
+using log4net.Core;
 
 namespace EventBus {
     public static class EventTypeTool {
@@ -84,4 +87,8 @@ namespace EventBus {
         protected SingletonPatternClass() {
         }
     }
+
+    public static class LogUtil {
+    }
+    
 }

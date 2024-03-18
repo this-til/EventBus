@@ -11,12 +11,12 @@ namespace EventBus {
         /// 如果不能创建请返回null,
         /// 返回null代表放弃对监听方法进行构建
         /// </summary>
-        IEventTrigger? create(IEventBus eventBus, object obj, Type eventType, MethodInfo methodInfo, EventAttribute? eventAttribute);
+        IEventTrigger? create(IEventBus eventBus, object obj, Type eventType,Type methodInfoReturnType, MethodInfo methodInfo, EventAttribute? eventAttribute);
     }
 
     public class DefaultEventTriggerFactory : SingletonPatternClass<DefaultEventTriggerFactory>, IEventTriggerFactory {
-        public IEventTrigger? create(IEventBus eventBus, object obj, Type eventType, MethodInfo methodInfo, EventAttribute? eventAttribute) {
-            return EventTrigger.create(methodInfo, eventType, obj, eventAttribute);
+        public IEventTrigger? create(IEventBus eventBus, object obj, Type eventType,Type methodInfoReturnType, MethodInfo methodInfo, EventAttribute? eventAttribute) {
+            return EventTrigger.create(methodInfo, eventType,methodInfoReturnType, obj, eventAttribute);
         }
     }
 }

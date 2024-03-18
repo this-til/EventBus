@@ -1,6 +1,9 @@
 ﻿using System;
+using System.Collections;
 using System.Collections.Generic;
+using System.Linq;
 using System.Reflection;
+using log4net;
 
 namespace EventBus {
     public interface IEventBus {
@@ -23,6 +26,14 @@ namespace EventBus {
         Event onEvent(Event @event);
 
         /// <summary>
+        /// 以携程的方式开启一个事件
+        /// </summary>
+        /// <param name="event"></param>
+        /// <returns></returns>
+        [Event(eventAttributeType = EventAttributeType.no)]
+        IEnumerable onEvent_coroutine(Event @event);
+
+        /// <summary>
         /// 删除一个注册者
         /// </summary>
         /// <param name="registered">事件的注册者</param>
@@ -38,36 +49,44 @@ namespace EventBus {
         /// </summary>
         IEventBusRule getRule();
 
-        /// <summary>
-        /// 设置日志输出接口
-        /// </summary>
-        void setLog(ILogOut logger);
-
-        /// <summary>
-        /// 获取事件系统的一个日志输出接口
-        /// </summary>
-        ILogOut? getLog();
+        ILog getLog();
     }
 
     [EventSupplierExclude]
     public class EventBus : IEventBus {
         protected readonly HashSet<object> allRegistered = new HashSet<object>();
-        protected readonly Dictionary<Type, List<IEventTrigger>> eventBus = new Dictionary<Type, List<IEventTrigger>>();
-        protected readonly Dictionary<Type, List<List<IEventTrigger>>> runTimeEventBus = new Dictionary<Type, List<List<IEventTrigger>>>();
         protected readonly HashSet<object> removeRegisteredSet = new HashSet<object>();
 
-        protected ILogOut? log;
+        protected readonly Dictionary<Type, List<IEventTrigger>> eventBus = new Dictionary<Type, List<IEventTrigger>>();
+        protected readonly Dictionary<Type, List<List<IEventTrigger>>> runTimeEventBus = new Dictionary<Type, List<List<IEventTrigger>>>();
+
+        protected readonly Dictionary<Type, List<IEventTrigger>> eventBus_coroutine = new Dictionary<Type, List<IEventTrigger>>();
+        protected readonly Dictionary<Type, List<List<IEventTrigger>>> runTimeEventBus_coroutine = new Dictionary<Type, List<List<IEventTrigger>>>();
+
+        protected ILog? log;
         protected IEventBusRule eventBusRule = EventBusRule.defaultEventBusRule;
 
-        public void put(object registered) {
-            getLog()?.Info($"EventBus开始注册事件监听者 监听者:{registered},监听者类型:{registered.GetType()}");
+        protected List<IEventTrigger> remove_cache = new List<IEventTrigger>();
+        protected List<IEventTrigger> remove_coroutine_cache = new List<IEventTrigger>();
 
+        protected List<IEventTrigger> add_cache = new List<IEventTrigger>();
+        protected List<IEventTrigger> add_coroutine_cache = new List<IEventTrigger>();
+
+        public EventBus() {
+            log = LogManager.GetLogger(GetType());
+        }
+
+        public void put(object registered) {
+            if (allRegistered.Contains(registered)) {
+                log?.Info($"{registered}重复的注册");
+            }
             foreach (var eventRegistrantFilter in eventBusRule.forEventRegistrantFilter()) {
                 if (eventRegistrantFilter.isFilter(this, registered)) {
-                    getLog()?.Info("EventBus将事件监听被过滤掉了.");
+                    log?.Info($"{registered}被{eventRegistrantFilter}过滤掉了");
                     return;
                 }
             }
+
             allRegistered.Add(registered);
             BindingFlags bindingFlags = BindingFlags.Public | BindingFlags.NonPublic;
             bindingFlags |= registered is Type ? BindingFlags.Static : BindingFlags.Instance;
@@ -85,26 +104,37 @@ namespace EventBus {
 
                 foreach (var eventTriggerFilter in eventBusRule.forEventTriggerFilter()) {
                     if (eventTriggerFilter.isFilter(this, registered, registeredType, eventType, methodInfo, eventAttribute)) {
+                        log?.Info($"{registered}中{methodInfo}被{eventTriggerFilter}过滤掉了");
                         goto end;
                     }
                 }
 
-                if (!eventBus.TryGetValue(eventType, out var list)) {
+                Type methodInfoReturnType = methodInfo.ReturnType;
+
+                bool isCoroutine = methodInfoReturnType == typeof(IEnumerable) || methodInfoReturnType == typeof(IEnumerator);
+                if (!isCoroutine && methodInfoReturnType != typeof(void)) {
+                    log?.Warn($"{registered}中{methodInfo}返回值不是{typeof(void)},{typeof(IEnumerable)},{typeof(IEnumerator)},但他不会被拍抛弃");
+                }
+
+                Dictionary<Type, List<IEventTrigger>> _eventBus = isCoroutine ? eventBus_coroutine : eventBus;
+                if (!_eventBus.TryGetValue(eventType, out var list)) {
                     list = new List<IEventTrigger>();
-                    eventBus.Add(eventType, list);
+                    _eventBus.Add(eventType, list);
                 }
 
                 IEventTrigger? newEventTrigger = null;
                 foreach (var eventTriggerFactory in eventBusRule.forEventTriggerFactory()) {
-                    newEventTrigger = eventTriggerFactory.create(this, registered, eventType, methodInfo, eventAttribute);
+                    newEventTrigger = eventTriggerFactory.create(this, registered, eventType, methodInfoReturnType, methodInfo, eventAttribute);
                     if (newEventTrigger != null) {
                         break;
                     }
                 }
                 if (newEventTrigger == null) {
-                    getLog()?.Info($"EventBus忽视了方法:{methodInfo}");
+                    log?.Info($"{registered}中{methodInfo}并没有被创建{typeof(IEventTrigger)}");
                     continue;
                 }
+
+                (isCoroutine ? add_coroutine_cache : add_cache).Add(newEventTrigger);
 
                 bool needInsert = true;
                 for (var index = 0; index < list.Count; index++) {
@@ -119,10 +149,8 @@ namespace EventBus {
                 if (needInsert) {
                     list.Add(newEventTrigger);
                 }
-                getLog()?.Info($"EventBus监听方法注册成功 方法:{methodInfo}");
                 end: ;
             }
-            getLog()?.Info($"EventBus结束注册事件监听者 监听者:{registered},监听者类型:{registered.GetType()}");
         }
 
         [Event(eventAttributeType = EventAttributeType.no)]
@@ -184,18 +212,129 @@ namespace EventBus {
             return @event;
         }
 
+        [Event(eventAttributeType = EventAttributeType.no)]
+        public IEnumerable onEvent_coroutine(Event @event) {
+            if (removeRegisteredSet.Count > 0) {
+                foreach (var registered in removeRegisteredSet) {
+                    removeProtected(registered);
+                }
+                removeRegisteredSet.Clear();
+            }
+
+            onEvent(@event);
+
+            if (!runTimeEventBus_coroutine.TryGetValue(@event.GetType(), out var runTimeBus)) {
+                List<Type> can = @event.GetType().getParents();
+                runTimeBus = new List<List<IEventTrigger>>(can.Count);
+                foreach (var type in can) {
+                    if (!eventBus_coroutine.TryGetValue(type, out var bus)) {
+                        bus = new List<IEventTrigger>();
+                        eventBus_coroutine.Add(type, bus);
+                    }
+                    runTimeBus.Add(bus);
+                }
+                runTimeEventBus_coroutine.Add(@event.GetType(), runTimeBus);
+            }
+
+            foreach (var bus in runTimeBus) {
+                interrupt:
+                if (bus.Count == 0) {
+                    continue;
+                }
+                foreach (var eventTrigger in bus) {
+                    object invoke = null;
+                    IEnumerator enumerator = null;
+                    while (invoke == null || enumerator != null) {
+                        try {
+                            if (invoke == null) {
+                                invoke = eventTrigger.invoke(@event);
+                                switch (invoke) {
+                                    case IEnumerable enumerable:
+                                        enumerator = enumerable.GetEnumerator();
+                                        break;
+                                    case IEnumerator _enumerator:
+                                        enumerator = _enumerator;
+                                        break;
+                                }
+                            }
+                            else {
+                                if (!enumerator.MoveNext()) {
+                                    (enumerator as IDisposable).Dispose();
+                                    enumerator = null;
+                                }
+                            }
+                        }
+                        catch (Exception e) {
+                            foreach (var eventExceptionHandle in eventBusRule.forEventExceptionHandle()) {
+                                ExceptionHandleType exceptionHandleType = eventExceptionHandle.doCatch(this, eventTrigger, @event, e);
+                                switch (exceptionHandleType) {
+                                    case ExceptionHandleType.success:
+                                        goto success;
+                                    case ExceptionHandleType.success_interrupt:
+                                        goto interrupt;
+                                    case ExceptionHandleType.success_end:
+                                        goto end;
+                                    case ExceptionHandleType.@throw:
+                                        throw;
+                                    case ExceptionHandleType.skip:
+                                        continue;
+                                    default:
+                                        throw;
+                                }
+                            }
+                        }
+
+                        yield return enumerator.Current;
+                    }
+
+                    success:
+                    if (!@event.isContinue()) {
+                        break;
+                    }
+                }
+            }
+            end: ;
+        }
+
         protected void removeProtected(object registered) {
             allRegistered.Remove(registered);
+
             foreach (var keyValuePair in eventBus) {
                 List<IEventTrigger> eventTriggers = keyValuePair.Value;
                 for (var index = 0; index < eventTriggers.Count; index++) {
-                    if (!registered.Equals(eventTriggers[index].getEventRegistrant())) {
+                    IEventTrigger eventTrigger = eventTriggers[index];
+                    if (!registered.Equals(eventTrigger.getEventRegistrant())) {
                         continue;
                     }
+
                     eventTriggers.RemoveAt(index);
                     index--;
+
+                    remove_cache.Add(eventTrigger);
                 }
             }
+
+            foreach (var keyValuePair in eventBus_coroutine) {
+                List<IEventTrigger> eventTriggers = keyValuePair.Value;
+                for (var index = 0; index < eventTriggers.Count; index++) {
+                    IEventTrigger eventTrigger = eventTriggers[index];
+                    if (!registered.Equals(eventTrigger.getEventRegistrant())) {
+                        continue;
+                    }
+
+                    eventTriggers.RemoveAt(index);
+                    index--;
+
+                    remove_coroutine_cache.Add(eventTrigger);
+                }
+            }
+
+            if (remove_cache.Count > 0 || remove_coroutine_cache.Count > 0) {
+                log.Info($"从{registered}中删除监听:{string.Join(',', remove_cache.Select(trigger => trigger.getMethodInfo().ToString()))} 删除携程监听{string.Join(',', remove_coroutine_cache.Select(trigger => trigger.getMethodInfo().ToString()))}");
+            }
+
+            remove_cache.Clear();
+            remove_coroutine_cache.Clear();
         }
 
         public void remove(object registered) {
@@ -207,16 +346,12 @@ namespace EventBus {
 
         public ISet<object> getAllRegistered() => allRegistered;
 
-        public void setLog(ILogOut logger) {
-            this.log = logger;
-        }
-
-        public ILogOut? getLog() => this.log;
-
         public void setRule(IEventBusRule _eventBusRule) {
             eventBusRule = _eventBusRule;
         }
 
         public IEventBusRule getRule() => eventBusRule;
+
+        public ILog getLog() => log;
     }
 }

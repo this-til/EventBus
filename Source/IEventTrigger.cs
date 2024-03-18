@@ -10,12 +10,17 @@ namespace EventBus {
         /// <summary>
         /// 事件被调用
         /// </summary>
-        void invoke(Event @event);
+        object invoke(Event @event);
 
         /// <summary>
         /// 获取事件的注册者
         /// </summary>
         object getEventRegistrant();
+
+        /// <summary>
+        /// 获取监听的方法
+        /// </summary>
+        MethodInfo getMethodInfo();
 
         /// <summary>
         /// 获取事件类型
@@ -49,14 +54,17 @@ namespace EventBus {
             return eventAttribute?.priority ?? 0;
         }
 
-        public abstract void invoke(Event @event);
+        public abstract object invoke(Event @event);
 
         public Type getEventType() => type;
 
-        public static EventTrigger? create(MethodInfo methodInfo, Type eventType, object use, EventAttribute? eventAttribute) {
-            Type type = typeof(EventTrigger<>).MakeGenericType(eventType);
-            object? obj = Activator.CreateInstance(type, methodInfo, use, eventAttribute);
-            return obj as EventTrigger;
+        public MethodInfo getMethodInfo() => methodInfo;
+
+        public static EventTrigger? create(MethodInfo methodInfo, Type eventType, Type methodInfoReturnType, object use, EventAttribute? eventAttribute) {
+            if (methodInfoReturnType == typeof(void)) {
+                return Activator.CreateInstance(typeof(EventTrigger<>).MakeGenericType(eventType), methodInfo, use, eventAttribute) as EventTrigger;
+            }
+            return Activator.CreateInstance(typeof(EventTrigger<,>).MakeGenericType(eventType, methodInfoReturnType), methodInfo, use, eventAttribute) as EventTrigger;
         }
     }
 
@@ -69,8 +77,21 @@ namespace EventBus {
             this.@delegate = (eventDelegate)methodInfo.CreateDelegate(typeof(eventDelegate), methodInfo.IsStatic ? null : use);
         }
 
-        public override void invoke(Event @event) {
+        public override object invoke(Event @event) {
             @delegate((T)@event);
+            return null;
         }
+    }
+
+    public class EventTrigger<T, R> : EventTrigger where T : Event {
+        public delegate R eventDelegate(T @event);
+
+        protected readonly eventDelegate @delegate;
+
+        public EventTrigger(MethodInfo methodInfo, object use, EventAttribute? eventAttribute) : base(methodInfo, use, eventAttribute, typeof(T)) {
+            this.@delegate = (eventDelegate)methodInfo.CreateDelegate(typeof(eventDelegate), methodInfo.IsStatic ? null : use);
+        }
+
+        public override object invoke(Event @event) => @delegate((T)@event);
     }
 }

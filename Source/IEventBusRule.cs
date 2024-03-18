@@ -1,5 +1,7 @@
 ﻿using System.Collections;
 using System.Collections.Generic;
+using JetBrains.Annotations;
+using log4net;
 
 namespace EventBus {
     /// <summary>
@@ -24,6 +26,7 @@ namespace EventBus {
         protected readonly List<IEventTriggerFilter> eventTriggerFilterList = new List<IEventTriggerFilter>();
         protected readonly List<IEventTriggerFactory> eventTriggerFactoryList = new List<IEventTriggerFactory>();
         protected readonly List<IEventExceptionHandle> eventExceptionHandles = new List<IEventExceptionHandle>();
+        
 
         public EventBusRule() {
             addEventRegistrantFilter(EventRegistrantTypeFilter.getInstance());
@@ -48,6 +51,7 @@ namespace EventBus {
         public void addEventExceptionHandle(IEventExceptionHandle eventExceptionHandle) {
             eventExceptionHandles.Insert(0, eventExceptionHandle);
         }
+        
 
         public IEnumerable<IEventRegistrantFilter> forEventRegistrantFilter() => eventRegistrantFilterList;
 
