@@ -3,7 +3,7 @@
         <TargetFramework>net6.0</TargetFramework>
         <ImplicitUsings>disable</ImplicitUsings>
         <Nullable>enable</Nullable>
-        <LangVersion>9</LangVersion>
+        <LangVersion>11</LangVersion>
     </PropertyGroup>
     <ItemGroup>
         <PackageReference Include="log4net" Version="2.0.16" />
