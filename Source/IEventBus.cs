@@ -261,6 +261,7 @@ namespace EventBus {
                                 if (!enumerator.MoveNext()) {
                                     (enumerator as IDisposable).Dispose();
                                     enumerator = null;
+                                    break;
                                 }
                             }
                         }
