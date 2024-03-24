@@ -331,7 +331,7 @@ namespace EventBus {
             }
 
             if (remove_cache.Count > 0 || remove_coroutine_cache.Count > 0) {
-                log.Info($"从{registered}中删除监听:{string.Join(',', remove_cache.Select(trigger => trigger.getMethodInfo().ToString()))} 删除携程监听{string.Join(',', remove_coroutine_cache.Select(trigger => trigger.getMethodInfo().ToString()))}");
+                log?.Info($"从{registered}中删除监听:{string.Join(',', remove_cache.Select(trigger => trigger.getMethodInfo().ToString()))} 删除携程监听{string.Join(',', remove_coroutine_cache.Select(trigger => trigger.getMethodInfo().ToString()))}");
             }
 
             remove_cache.Clear();
