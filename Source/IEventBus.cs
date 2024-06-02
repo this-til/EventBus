@@ -49,7 +49,7 @@ namespace EventBus {
         /// </summary>
         IEventBusRule getRule();
 
-        ILog getLog();
+        ILog? getLog();
     }
 
     [EventSupplierExclude]
@@ -60,17 +60,11 @@ namespace EventBus {
         protected readonly Dictionary<Type, List<IEventTrigger>> eventBus = new Dictionary<Type, List<IEventTrigger>>();
         protected readonly Dictionary<Type, List<List<IEventTrigger>>> runTimeEventBus = new Dictionary<Type, List<List<IEventTrigger>>>();
 
-        protected readonly Dictionary<Type, List<IEventTrigger>> eventBus_coroutine = new Dictionary<Type, List<IEventTrigger>>();
-        protected readonly Dictionary<Type, List<List<IEventTrigger>>> runTimeEventBus_coroutine = new Dictionary<Type, List<List<IEventTrigger>>>();
-
         protected ILog? log;
         protected IEventBusRule eventBusRule = EventBusRule.defaultEventBusRule;
 
         protected List<IEventTrigger> remove_cache = new List<IEventTrigger>();
-        protected List<IEventTrigger> remove_coroutine_cache = new List<IEventTrigger>();
-
         protected List<IEventTrigger> add_cache = new List<IEventTrigger>();
-        protected List<IEventTrigger> add_coroutine_cache = new List<IEventTrigger>();
 
         public EventBus() {
             log = LogManager.GetLogger(GetType());
@@ -111,15 +105,14 @@ namespace EventBus {
 
                 Type methodInfoReturnType = methodInfo.ReturnType;
 
-                bool isCoroutine = methodInfoReturnType == typeof(IEnumerable) || methodInfoReturnType == typeof(IEnumerator);
+                /*bool isCoroutine = methodInfoReturnType == typeof(IEnumerable) || methodInfoReturnType == typeof(IEnumerator);
                 if (!isCoroutine && methodInfoReturnType != typeof(void)) {
                     log?.Warn($"{registered}中{methodInfo}返回值不是{typeof(void)},{typeof(IEnumerable)},{typeof(IEnumerator)},但他不会被拍抛弃");
-                }
+                }*/
 
-                Dictionary<Type, List<IEventTrigger>> _eventBus = isCoroutine ? eventBus_coroutine : eventBus;
-                if (!_eventBus.TryGetValue(eventType, out var list)) {
+                if (!eventBus.TryGetValue(eventType, out var list)) {
                     list = new List<IEventTrigger>();
-                    _eventBus.Add(eventType, list);
+                    eventBus.Add(eventType, list);
                 }
 
                 IEventTrigger? newEventTrigger = null;
@@ -134,7 +127,7 @@ namespace EventBus {
                     continue;
                 }
 
-                (isCoroutine ? add_coroutine_cache : add_cache).Add(newEventTrigger);
+                add_cache.Add(newEventTrigger);
 
                 bool needInsert = true;
                 for (var index = 0; index < list.Count; index++) {
@@ -153,16 +146,18 @@ namespace EventBus {
             }
         }
 
-        [Event(eventAttributeType = EventAttributeType.no)]
-        public Event onEvent(Event @event) {
+        protected void deletionDetection() {
             if (removeRegisteredSet.Count > 0) {
                 foreach (var registered in removeRegisteredSet) {
                     removeProtected(registered);
                 }
                 removeRegisteredSet.Clear();
             }
-            if (!runTimeEventBus.TryGetValue(@event.GetType(), out var runTimeBus)) {
-                List<Type> can = @event.GetType().getParents();
+        }
+
+        protected List<List<IEventTrigger>> getRunTimeEventTrigger(Type eventType) {
+            if (!runTimeEventBus.TryGetValue(eventType, out var runTimeBus)) {
+                List<Type> can = eventType.getParents();
                 runTimeBus = new List<List<IEventTrigger>>(can.Count);
                 foreach (var type in can) {
                     if (!eventBus.TryGetValue(type, out var bus)) {
@@ -171,8 +166,15 @@ namespace EventBus {
                     }
                     runTimeBus.Add(bus);
                 }
-                runTimeEventBus.Add(@event.GetType(), runTimeBus);
+                runTimeEventBus.Add(eventType, runTimeBus);
             }
+            return runTimeBus;
+        }
+
+        [Event(eventAttributeType = EventAttributeType.no)]
+        public Event onEvent(Event @event) {
+            deletionDetection();
+            List<List<IEventTrigger>> runTimeBus = getRunTimeEventTrigger(@event.GetType());
 
             foreach (var bus in runTimeBus) {
                 interrupt:
@@ -209,83 +211,59 @@ namespace EventBus {
                 }
             }
             end:
+            deletionDetection();
             return @event;
         }
 
         [Event(eventAttributeType = EventAttributeType.no)]
         public IEnumerable onEvent_coroutine(Event @event) {
-            if (removeRegisteredSet.Count > 0) {
-                foreach (var registered in removeRegisteredSet) {
-                    removeProtected(registered);
-                }
-                removeRegisteredSet.Clear();
-            }
-
-            onEvent(@event);
-
-            if (!runTimeEventBus_coroutine.TryGetValue(@event.GetType(), out var runTimeBus)) {
-                List<Type> can = @event.GetType().getParents();
-                runTimeBus = new List<List<IEventTrigger>>(can.Count);
-                foreach (var type in can) {
-                    if (!eventBus_coroutine.TryGetValue(type, out var bus)) {
-                        bus = new List<IEventTrigger>();
-                        eventBus_coroutine.Add(type, bus);
-                    }
-                    runTimeBus.Add(bus);
-                }
-                runTimeEventBus_coroutine.Add(@event.GetType(), runTimeBus);
-            }
-
+            deletionDetection();
+            List<List<IEventTrigger>> runTimeBus = getRunTimeEventTrigger(@event.GetType());
             foreach (var bus in runTimeBus) {
                 interrupt:
                 if (bus.Count == 0) {
                     continue;
                 }
                 foreach (var eventTrigger in bus) {
-                    object invoke = null;
-                    IEnumerator enumerator = null;
-                    while (invoke == null || enumerator != null) {
-                        try {
-                            if (invoke == null) {
-                                invoke = eventTrigger.invoke(@event);
-                                switch (invoke) {
-                                    case IEnumerable enumerable:
-                                        enumerator = enumerable.GetEnumerator();
-                                        break;
-                                    case IEnumerator _enumerator:
-                                        enumerator = _enumerator;
-                                        break;
-                                }
-                            }
-                            else {
-                                if (!enumerator.MoveNext()) {
-                                    (enumerator as IDisposable).Dispose();
-                                    enumerator = null;
-                                    break;
-                                }
-                            }
-                        }
-                        catch (Exception e) {
-                            foreach (var eventExceptionHandle in eventBusRule.forEventExceptionHandle()) {
-                                ExceptionHandleType exceptionHandleType = eventExceptionHandle.doCatch(this, eventTrigger, @event, e);
-                                switch (exceptionHandleType) {
-                                    case ExceptionHandleType.success:
-                                        goto success;
-                                    case ExceptionHandleType.success_interrupt:
-                                        goto interrupt;
-                                    case ExceptionHandleType.success_end:
-                                        goto end;
-                                    case ExceptionHandleType.@throw:
-                                        throw;
-                                    case ExceptionHandleType.skip:
-                                        continue;
-                                    default:
-                                        throw;
-                                }
+                    object? invoke = null;
+                    try {
+                        invoke = eventTrigger.invoke(@event);
+                    }
+                    catch (Exception e) {
+                        foreach (var eventExceptionHandle in eventBusRule.forEventExceptionHandle()) {
+                            ExceptionHandleType exceptionHandleType = eventExceptionHandle.doCatch(this, eventTrigger, @event, e);
+                            switch (exceptionHandleType) {
+                                case ExceptionHandleType.success:
+                                    goto success;
+                                case ExceptionHandleType.success_interrupt:
+                                    goto interrupt;
+                                case ExceptionHandleType.success_end:
+                                    goto end;
+                                case ExceptionHandleType.@throw:
+                                    throw;
+                                case ExceptionHandleType.skip:
+                                    continue;
+                                default:
+                                    throw;
                             }
                         }
+                    }
 
-                        yield return enumerator.Current;
+                    IEnumerator? enumerator = null;
+                    switch (invoke) {
+                        case IEnumerable enumerable:
+                            enumerator = enumerable.GetEnumerator();
+                            break;
+                        case IEnumerator _enumerator:
+                            enumerator = _enumerator;
+                            break;
+                    }
+
+                    if (enumerator != null) {
+                        while (enumerator.MoveNext()) {
+                            yield return enumerator.Current;
+                        }
+                        (enumerator as IDisposable)?.Dispose();
                     }
 
                     success:
@@ -294,6 +272,7 @@ namespace EventBus {
                     }
                 }
             }
+            deletionDetection();
             end: ;
         }
 
@@ -315,27 +294,11 @@ namespace EventBus {
                 }
             }
 
-            foreach (var keyValuePair in eventBus_coroutine) {
-                List<IEventTrigger> eventTriggers = keyValuePair.Value;
-                for (var index = 0; index < eventTriggers.Count; index++) {
-                    IEventTrigger eventTrigger = eventTriggers[index];
-                    if (!registered.Equals(eventTrigger.getEventRegistrant())) {
-                        continue;
-                    }
-
-                    eventTriggers.RemoveAt(index);
-                    index--;
-
-                    remove_coroutine_cache.Add(eventTrigger);
-                }
-            }
-
-            if (remove_cache.Count > 0 || remove_coroutine_cache.Count > 0) {
-                log?.Info($"从{registered}中删除监听:{string.Join(',', remove_cache.Select(trigger => trigger.getMethodInfo().ToString()))} 删除携程监听{string.Join(',', remove_coroutine_cache.Select(trigger => trigger.getMethodInfo().ToString()))}");
+            if (remove_cache.Count > 0) {
+                log?.Info($"从{registered}中删除监听:{string.Join(',', remove_cache.Select(trigger => trigger.getMethodInfo().ToString()))} ");
             }
 
             remove_cache.Clear();
-            remove_coroutine_cache.Clear();
         }
 
         public void remove(object registered) {
@@ -353,6 +316,6 @@ namespace EventBus {
 
         public IEventBusRule getRule() => eventBusRule;
 
-        public ILog getLog() => log;
+        public ILog? getLog() => log;
     }
 }

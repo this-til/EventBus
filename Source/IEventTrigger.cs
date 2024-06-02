@@ -10,7 +10,7 @@ namespace EventBus {
         /// <summary>
         /// 事件被调用
         /// </summary>
-        object invoke(Event @event);
+        object? invoke(Event @event);
 
         /// <summary>
         /// 获取事件的注册者
@@ -54,7 +54,7 @@ namespace EventBus {
             return eventAttribute?.priority ?? 0;
         }
 
-        public abstract object invoke(Event @event);
+        public abstract object? invoke(Event @event);
 
         public Type getEventType() => type;
 
@@ -77,7 +77,7 @@ namespace EventBus {
             this.@delegate = (eventDelegate)methodInfo.CreateDelegate(typeof(eventDelegate), methodInfo.IsStatic ? null : use);
         }
 
-        public override object invoke(Event @event) {
+        public override object? invoke(Event @event) {
             @delegate((T)@event);
             return null;
         }
@@ -92,6 +92,6 @@ namespace EventBus {
             this.@delegate = (eventDelegate)methodInfo.CreateDelegate(typeof(eventDelegate), methodInfo.IsStatic ? null : use);
         }
 
-        public override object invoke(Event @event) => @delegate((T)@event);
+        public override object? invoke(Event @event) => @delegate((T)@event);
     }
 }
