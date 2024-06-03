@@ -50,6 +50,8 @@ namespace Til.EventBus {
         IEventBusRule getRule();
 
         ILog? getLog();
+
+        void setLog(ILog log);
     }
 
     [EventSupplierExclude]
@@ -66,10 +68,6 @@ namespace Til.EventBus {
         protected Stack<Event> eventStack = new Stack<Event>();
 
         protected List<IEventTrigger> remove_cache = new List<IEventTrigger>();
-
-        public EventBus() {
-            log = LogManager.GetLogger(GetType());
-        }
 
         public void put(object registered) {
             if (allRegistered.Contains(registered)) {
@@ -321,5 +319,7 @@ namespace Til.EventBus {
         public IEventBusRule getRule() => eventBusRule;
 
         public ILog? getLog() => log;
+
+        public void setLog(ILog _log) => log = _log;
     }
 }
