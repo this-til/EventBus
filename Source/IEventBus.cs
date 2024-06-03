@@ -63,8 +63,9 @@ namespace EventBus {
         protected ILog? log;
         protected IEventBusRule eventBusRule = EventBusRule.defaultEventBusRule;
 
+        protected Stack<Event> eventStack = new Stack<Event>();
+
         protected List<IEventTrigger> remove_cache = new List<IEventTrigger>();
-        protected List<IEventTrigger> add_cache = new List<IEventTrigger>();
 
         public EventBus() {
             log = LogManager.GetLogger(GetType());
@@ -127,12 +128,10 @@ namespace EventBus {
                     continue;
                 }
 
-                add_cache.Add(newEventTrigger);
-
                 bool needInsert = true;
                 for (var index = 0; index < list.Count; index++) {
                     IEventTrigger eventTrigger = list[index];
-                    if (eventTrigger.getEventPriority() > newEventTrigger.getEventPriority()) {
+                    if (eventTrigger.getEventPriority() >= newEventTrigger.getEventPriority()) {
                         continue;
                     }
                     list.Insert(index, newEventTrigger);
@@ -175,6 +174,7 @@ namespace EventBus {
         public Event onEvent(Event @event) {
             deletionDetection();
             List<List<IEventTrigger>> runTimeBus = getRunTimeEventTrigger(@event.GetType());
+            eventStack.Push(@event);
 
             foreach (var bus in runTimeBus) {
                 interrupt:
@@ -212,6 +212,8 @@ namespace EventBus {
             }
             end:
             deletionDetection();
+
+            eventStack.Pop();
             return @event;
         }
 
@@ -264,6 +266,7 @@ namespace EventBus {
                             yield return enumerator.Current;
                         }
                         (enumerator as IDisposable)?.Dispose();
+                        enumerator = null;
                     }
 
                     success:
@@ -303,6 +306,10 @@ namespace EventBus {
 
         public void remove(object registered) {
             if (!allRegistered.Contains(registered)) {
+                return;
+            }
+            if (eventStack.Count == 0) {
+                removeProtected(registered);
                 return;
             }
             removeRegisteredSet.Add(registered);

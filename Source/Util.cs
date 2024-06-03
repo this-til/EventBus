@@ -1,8 +1,5 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Text;
-using log4net;
-using log4net.Core;
 
 namespace EventBus {
     public static class EventTypeTool {
@@ -53,10 +50,10 @@ namespace EventBus {
         public static readonly Dictionary<Type, List<Type>> types = new Dictionary<Type, List<Type>>();
 
         public static List<Type> getParents(this Type type) {
-            if (types.ContainsKey(type)) {
-                return types[type];
+            if (types.TryGetValue(type, out List<Type>? list)) {
+                return list;
             }
-            List<Type> list = type._getParents(new List<Type>());
+            list = type._getParents(new List<Type>());
             types.Add(type, list);
             return list;
         }
@@ -90,5 +87,4 @@ namespace EventBus {
 
     public static class LogUtil {
     }
-    
 }

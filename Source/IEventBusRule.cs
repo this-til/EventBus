@@ -1,6 +1,4 @@
-﻿using System.Collections;
-using System.Collections.Generic;
-using log4net;
+﻿using System.Collections.Generic;
 
 namespace EventBus {
     /// <summary>
