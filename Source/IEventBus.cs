@@ -146,12 +146,13 @@ namespace EventBus {
         }
 
         protected void deletionDetection() {
-            if (removeRegisteredSet.Count > 0) {
-                foreach (var registered in removeRegisteredSet) {
-                    removeProtected(registered);
-                }
-                removeRegisteredSet.Clear();
+            if (removeRegisteredSet.Count <= 0) {
+                return;
             }
+            foreach (var registered in removeRegisteredSet) {
+                removeProtected(registered);
+            }
+            removeRegisteredSet.Clear();
         }
 
         protected List<List<IEventTrigger>> getRunTimeEventTrigger(Type eventType) {
@@ -232,6 +233,7 @@ namespace EventBus {
                         invoke = eventTrigger.invoke(@event);
                     }
                     catch (Exception e) {
+                        getLog()?.Info($"处理事件{@event}时出现异常:", e);
                         foreach (var eventExceptionHandle in eventBusRule.forEventExceptionHandle()) {
                             ExceptionHandleType exceptionHandleType = eventExceptionHandle.doCatch(this, eventTrigger, @event, e);
                             switch (exceptionHandleType) {
@@ -281,7 +283,6 @@ namespace EventBus {
 
         protected void removeProtected(object registered) {
             allRegistered.Remove(registered);
-
             foreach (var keyValuePair in eventBus) {
                 List<IEventTrigger> eventTriggers = keyValuePair.Value;
                 for (var index = 0; index < eventTriggers.Count; index++) {
@@ -289,18 +290,14 @@ namespace EventBus {
                     if (!registered.Equals(eventTrigger.getEventRegistrant())) {
                         continue;
                     }
-
                     eventTriggers.RemoveAt(index);
                     index--;
-
                     remove_cache.Add(eventTrigger);
                 }
             }
-
             if (remove_cache.Count > 0) {
-                log?.Info($"从{registered}中删除监听:{string.Join(',', remove_cache.Select(trigger => trigger.getMethodInfo().ToString()))} ");
+                log?.Info($"从{registered}中删除监听:{string.Join(',', remove_cache.Select(trigger => trigger.getMethodInfo().ToString()))}");
             }
-
             remove_cache.Clear();
         }
 
