@@ -1,6 +1,6 @@
 ﻿using System;
 
-namespace EventBus {
+namespace Til.EventBus {
     public interface IEventExceptionHandle {
         /// <summary>
         /// 进行抛出异常的处理

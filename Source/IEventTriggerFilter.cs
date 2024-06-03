@@ -1,7 +1,7 @@
 ﻿using System;
 using System.Reflection;
 
-namespace EventBus {
+namespace Til.EventBus {
     /// <summary>
     /// 注册事件过滤器
     /// </summary>

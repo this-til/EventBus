@@ -1,7 +1,7 @@
 ﻿using System;
 using System.Reflection;
 
-namespace EventBus {
+namespace Til.EventBus {
     /// <summary>
     /// 事件创造工厂
     /// </summary>

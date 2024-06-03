@@ -1,7 +1,7 @@
 ﻿using System;
 using System.Reflection;
 
-namespace EventBus {
+namespace Til.EventBus {
     /// <summary>
     /// 事件触发器
     /// 用来调用事件回调

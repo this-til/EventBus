@@ -1,6 +1,6 @@
 ﻿using System.Collections.Generic;
 
-namespace EventBus {
+namespace Til.EventBus {
     /// <summary>
     /// 事件的规则
     /// </summary>

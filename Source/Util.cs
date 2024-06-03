@@ -1,7 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 
-namespace EventBus {
+namespace Til.EventBus {
     public static class EventTypeTool {
         /*public static Dictionary<Type, int> typeMapping = new Dictionary<Type, int>();
         public static List<Type> typeList = new List<Type>();

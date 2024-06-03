@@ -1,6 +1,6 @@
 ﻿using System;
 
-namespace EventBus {
+namespace Til.EventBus {
     [Flags]
     public enum EventAttributeType {
         /// <summary>

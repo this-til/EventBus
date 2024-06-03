@@ -1,6 +1,6 @@
 ﻿using System;
 
-namespace EventBus {
+namespace Til.EventBus {
     [AttributeUsage(AttributeTargets.Method, AllowMultiple = false, Inherited = true)]
     public class EventAttribute : Attribute {
         public EventAttributeType eventAttributeType;

@@ -1,5 +1,5 @@
 
-namespace EventBus {
+namespace Til.EventBus {
     
     public class Event {
         /// <summary>

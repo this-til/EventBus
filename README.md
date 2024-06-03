@@ -7,11 +7,11 @@
     < C#
     using System;
     using System.Collections;
-    using EventBus;
+    using til.EventBus;
     
     public class Demo {
     public static void Main() {
-            IEventBus eventBus = new EventBus.EventBus();
+            IEventBus eventBus = new EventBus();
             
             //自动注入带唯一Event形参的方法
             //Type 注入静态方法
