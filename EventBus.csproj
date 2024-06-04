@@ -7,7 +7,7 @@
 
         <PackageId>Til.EventBus</PackageId>
         <Authors>cavpollo</Authors>
-        <Version>1.0.5</Version>
+        <Version>1.0.7</Version>
         <Authors>til</Authors>
         <description>一个简单高效的事件总线</description>
         <PackageLicenseFile>LICENSE</PackageLicenseFile>
@@ -19,12 +19,9 @@
         <RepositoryType>git</RepositoryType>
         <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
         <EnablePackageValidation>true</EnablePackageValidation>
-
+        <DebugSymbols>true</DebugSymbols>
     </PropertyGroup>
 
-    <ItemGroup>
-        <PackageReference Include="log4net" Version="2.0.16"/>
-    </ItemGroup>
 
     <ItemGroup>
         <None Include="README.md" Pack="true" PackagePath=""/>
