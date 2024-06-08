@@ -1,13 +1,13 @@
 <Project Sdk="Microsoft.NET.Sdk">
     <PropertyGroup>
-        <TargetFrameworks>net6.0;net7.0;net8.0</TargetFrameworks>
+        <TargetFramework>netstandard2.0</TargetFramework>
         <ImplicitUsings>disable</ImplicitUsings>
         <Nullable>enable</Nullable>
         <LangVersion>11</LangVersion>
 
         <PackageId>Til.EventBus</PackageId>
         <Authors>cavpollo</Authors>
-        <Version>1.0.7</Version>
+        <Version>1.1.0</Version>
         <Authors>til</Authors>
         <description>一个简单高效的事件总线</description>
         <PackageLicenseFile>LICENSE</PackageLicenseFile>

@@ -293,7 +293,7 @@ namespace Til.EventBus {
                 }
             }
             if (remove_cache.Count > 0) {
-                log?.Info($"从{registered}中删除监听:{string.Join(',', remove_cache.Select(trigger => trigger.getMethodInfo().ToString()))}");
+                log?.Info($"从{registered}中删除监听:{string.Join(",", remove_cache.Select(trigger => trigger.getMethodInfo().ToString()))}");
             }
             remove_cache.Clear();
         }
