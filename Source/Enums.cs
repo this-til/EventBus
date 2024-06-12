@@ -1,6 +1,9 @@
 ﻿using System;
 
 namespace Til.EventBus {
+    /// <summary>
+    /// 事件属性
+    /// </summary>
     [Flags]
     public enum EventAttributeType {
         /// <summary>

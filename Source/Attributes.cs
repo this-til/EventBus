@@ -1,22 +1,34 @@
 ﻿using System;
 
-namespace Til.EventBus {
-    [AttributeUsage(AttributeTargets.Method, AllowMultiple = false, Inherited = true)]
-    public class EventAttribute : Attribute {
-        public EventAttributeType eventAttributeType;
+namespace Til.EventBus;
 
-        /// <summary>
-        /// 优先级
-        /// </summary>
-        public int priority;
-    }
+/// <summary>
+/// 事件属性
+/// </summary>
+[AttributeUsage(AttributeTargets.Method, AllowMultiple = false, Inherited = true)]
+public class EventAttribute : Attribute {
+    /// <summary>
+    /// 事件类型
+    /// </summary>
+    public EventAttributeType eventAttributeType;
 
     /// <summary>
-    /// 排除供应商
+    /// 优先级
     /// </summary>
-    [AttributeUsage(AttributeTargets.Class, AllowMultiple = false, Inherited = true)]
-    public class EventSupplierExcludeAttribute : Attribute {
-        public bool excludeState = true;
-        public bool excludeStateInstance = true;
-    }
+    public int priority;
+}
+
+/// <summary>
+/// 排除供应商
+/// </summary>
+[AttributeUsage(AttributeTargets.Class, AllowMultiple = false, Inherited = true)]
+public class EventSupplierExcludeAttribute : Attribute {
+    /// <summary>
+    /// 排除状态
+    /// </summary>
+    public bool excludeState = true;
+    /// <summary>
+    /// 排除状态实例
+    /// </summary>
+    public bool excludeStateInstance = true;
 }

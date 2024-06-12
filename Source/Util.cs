@@ -1,90 +1,84 @@
 ﻿using System;
 using System.Collections.Generic;
 
-namespace Til.EventBus {
-    public static class EventTypeTool {
-        /*public static Dictionary<Type, int> typeMapping = new Dictionary<Type, int>();
-        public static List<Type> typeList = new List<Type>();
-        public static List<int[]?> typeParentList = new List<int[]?>();
+namespace Til.EventBus;
+/// <summary>
+/// 定义一个类，用于获取类型之间的关系
+/// </summary>
+public static class EventTypeTool {
 
-        public static int getTypeId(Type type) {
-            if (typeMapping.ContainsKey(type)) {
-                return typeMapping[type];
-            }
-            int typeListCount = typeList.Count;
-            typeMapping.Add(type, typeListCount);
-            typeList.Add(type);
-            return typeListCount;
-        }
+    /// <summary>
+    /// 定义一个字典，用于存储类型之间的关系
+    /// </summary>
+    public static readonly Dictionary<Type, List<Type>> types = new Dictionary<Type, List<Type>>();
 
-        public static Type? getTypeAtId(int id) {
-            if (id < 0 || id > typeList.Count) {
-                return null;
-            }
-            return typeList[id];
-        }
-
-        public static int[]? getTypeParentIds(int id) {
-            if (id < 0 || id >= typeList.Count) {
-                return null;
-            }
-            int[]? array = id < typeParentList.Count ? typeParentList[id] : null;
-            if (array is null) {
-                Type type = getTypeAtId(id) ?? throw new Exception();
-                Type? basicsType = type;
-                List<int> types = new List<int>();
-                while (basicsType is not null && basicsType == typeof(object)) {
-                    types.Add(getTypeId(basicsType));
-                    basicsType = basicsType.BaseType;
-                }
-                while (typeParentList.Count < id) {
-                    typeParentList.Add(null);
-                }
-                typeParentList.Insert(id, types.ToArray());
-            }
-            return array;
-        }
-
-        public static int[] getTypeParentIds(Type type) => getTypeParentIds(getTypeId(type))!;*/
-
-        public static readonly Dictionary<Type, List<Type>> types = new Dictionary<Type, List<Type>>();
-
-        public static List<Type> getParents(this Type type) {
-            if (types.TryGetValue(type, out List<Type>? list)) {
-                return list;
-            }
-            list = type._getParents(new List<Type>());
-            types.Add(type, list);
+    /// <summary>
+    /// 定义一个方法，用于获取指定类型的父类型
+    /// </summary>
+    /// <param name="type"></param>
+    /// <returns></returns>
+    public static List<Type> getParents(this Type type) {
+        // 如果字典中存在该类型的父类型，则直接返回
+        if (types.TryGetValue(type, out List<Type>? list)) {
             return list;
         }
+        // 否则，递归获取该类型的父类型，并将结果存储在字典中
+        list = type._getParents(new List<Type>(), false);
+        types.Add(type, list);
+        return list;
+    }
 
-        public static List<Type> _getParents(this Type type, List<Type> list, bool hasInterfaces = false) {
-            list.Add(type);
-            if (hasInterfaces) {
-                foreach (var @interface in type.GetInterfaces()) {
-                    if (list.Contains(@interface)) {
-                        continue;
-                    }
-                    list.Add(@interface);
+    /// <summary>
+    /// 定义一个私有方法，用于递归获取指定类型的父类型
+    /// </summary>
+    /// <param name="type"></param>
+    /// <param name="list"></param>
+    /// <param name="hasInterfaces"></param>
+    /// <returns></returns>
+    public static List<Type> _getParents(this Type type, List<Type> list, bool hasInterfaces = false) {
+        // 将指定类型添加到列表中
+        list.Add(type);
+        // 如果指定类型实现了接口，则将接口添加到列表中
+        if (hasInterfaces) {
+            foreach (var @interface in type.GetInterfaces()) {
+                // 如果列表中已经存在该接口，则跳过
+                if (list.Contains(@interface)) {
+                    continue;
                 }
+                // 将接口添加到列表中
+                list.Add(@interface);
             }
-            Type? baseType = type.BaseType;
-            if (baseType == null || baseType == typeof(object)) {
-                return list;
-            }
-            return _getParents(baseType, list, hasInterfaces);
         }
-    }
-
-    public class SingletonPatternClass<T> where T : new() {
-        protected static T? instance;
-
-        public static T getInstance() => instance ??= new T();
-
-        protected SingletonPatternClass() {
+        // 获取指定类型的基类型
+        Type? baseType = type.BaseType;
+        // 如果基类型为空或者基类型为object，则返回列表
+        if (baseType == null || baseType == typeof(object)) {
+            return list;
         }
+        // 否则，递归获取基类型的父类型，并将结果添加到列表中
+        return _getParents(baseType, list, hasInterfaces);
     }
+}
 
-    public static class LogUtil {
+/// <summary>
+/// 定义一个类，用于实现单例模式
+/// </summary>
+/// <typeparam name="T"></typeparam>
+public class SingletonPatternClass<T> where T : new() {
+    /// <summary>
+    ///  定义一个静态属性，用于存储实例
+    /// </summary>
+    protected static T? instance;
+
+    /// <summary>
+    /// 定义一个静态方法，用于获取实例
+    /// </summary>
+    /// <returns></returns>
+    public static T getInstance() => instance ??= new T();
+
+    /// <summary>
+    /// 定义一个构造方法，用于防止实例被实例化
+    /// </summary>
+    protected SingletonPatternClass() {
     }
 }
