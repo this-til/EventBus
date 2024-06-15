@@ -169,7 +169,7 @@ public class EventBus : IEventBus {
 
     protected List<List<IEventTrigger>> getRunTimeEventTrigger(Type eventType) {
         if (!runTimeEventBus.TryGetValue(eventType, out var runTimeBus)) {
-            List<Type> can = eventType.getParents();
+            IList<Type> can = eventType.getParents();
             runTimeBus = new List<List<IEventTrigger>>(can.Count);
             foreach (var type in can) {
                 if (!eventBus.TryGetValue(type, out var bus)) {
