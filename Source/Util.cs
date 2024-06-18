@@ -30,7 +30,7 @@ public static class EventTypeTool {
         Type? baseType = type;
         list = new List<Type>();
         while (baseType is not null && baseType != typeof(object)) {
-            list.Add(type);
+            list.Add(baseType);
             baseType = baseType.BaseType;
         }
         types.Add(type, list);
