@@ -74,8 +74,6 @@ namespace Til.EventBus {
             addEventTriggerFilter(DefaultEventTriggerFilter.getInstance());
             // 添加事件触发工厂
             addEventTriggerFactory(DefaultEventTriggerFactory.getInstance());
-            // 添加事件异常处理
-            addEventExceptionHandle(DefaultEventExceptionHandle.getInstance());
         }
 
         /// <summary>

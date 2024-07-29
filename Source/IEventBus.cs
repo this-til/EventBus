@@ -3,12 +3,15 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
+using System.Threading.Tasks;
 
 namespace Til.EventBus {
+
     /// <summary>
     /// 事件总线-接口
     /// </summary>
     public interface IEventBus {
+
         /// <summary>
         /// 获取所有在这注册过的注册者
         /// </summary>
@@ -34,6 +37,13 @@ namespace Til.EventBus {
         /// <returns></returns>
         [Event(eventAttributeType = EventAttributeType.no)]
         IEnumerable onEvent_coroutine(Event @event);
+
+        /// <summary>
+        /// 异步开启事件
+        /// </summary>
+        /// <param name="event"></param>
+        [Event(eventAttributeType = EventAttributeType.no)]
+        Task onEvent_task(Event @event);
 
         /// <summary>
         /// 删除一个注册者
@@ -62,6 +72,7 @@ namespace Til.EventBus {
         /// </summary>
         /// <param name="log"></param>
         void setLog(ILog log);
+
     }
 
     /// <summary>
@@ -69,13 +80,17 @@ namespace Til.EventBus {
     /// </summary>
     [EventSupplierExclude]
     public class EventBus : IEventBus {
+
         protected readonly HashSet<object> allRegistered = new HashSet<object>();
+
         protected readonly HashSet<object> removeRegisteredSet = new HashSet<object>();
 
         protected readonly Dictionary<Type, List<IEventTrigger>> eventBus = new Dictionary<Type, List<IEventTrigger>>();
+
         protected readonly Dictionary<Type, List<List<IEventTrigger>>> runTimeEventBus = new Dictionary<Type, List<List<IEventTrigger>>>();
 
         protected ILog? log;
+
         protected IEventBusRule eventBusRule = EventBusRule.defaultEventBusRule;
 
         protected Stack<Event> eventStack = new Stack<Event>();
@@ -189,7 +204,6 @@ namespace Til.EventBus {
             eventStack.Push(@event);
 
             foreach (var bus in runTimeBus) {
-                interrupt:
                 if (bus.Count == 0) {
                     continue;
                 }
@@ -200,30 +214,14 @@ namespace Til.EventBus {
                     catch (Exception e) {
                         getLog()?.Info($"处理事件{@event}时出现异常:", e);
                         foreach (var eventExceptionHandle in eventBusRule.forEventExceptionHandle()) {
-                            ExceptionHandleType exceptionHandleType = eventExceptionHandle.doCatch(this, eventTrigger, @event, e);
-                            switch (exceptionHandleType) {
-                                case ExceptionHandleType.success:
-                                    goto success;
-                                case ExceptionHandleType.success_interrupt:
-                                    goto interrupt;
-                                case ExceptionHandleType.success_end:
-                                    goto end;
-                                case ExceptionHandleType.@throw:
-                                    throw;
-                                case ExceptionHandleType.skip:
-                                    continue;
-                                default:
-                                    throw;
-                            }
+                            eventExceptionHandle.doCatch(this, eventTrigger, @event, e);
                         }
                     }
-                    success:
                     if (!@event.isContinue()) {
                         break;
                     }
                 }
             }
-            end:
             deletionDetection();
 
             eventStack.Pop();
@@ -233,9 +231,9 @@ namespace Til.EventBus {
         [Event(eventAttributeType = EventAttributeType.no)]
         public IEnumerable onEvent_coroutine(Event @event) {
             deletionDetection();
+            eventStack.Push(@event);
             List<List<IEventTrigger>> runTimeBus = getRunTimeEventTrigger(@event.GetType());
             foreach (var bus in runTimeBus) {
-                interrupt:
                 if (bus.Count == 0) {
                     continue;
                 }
@@ -247,21 +245,7 @@ namespace Til.EventBus {
                     catch (Exception e) {
                         getLog()?.Info($"处理事件{@event}时出现异常:", e);
                         foreach (var eventExceptionHandle in eventBusRule.forEventExceptionHandle()) {
-                            ExceptionHandleType exceptionHandleType = eventExceptionHandle.doCatch(this, eventTrigger, @event, e);
-                            switch (exceptionHandleType) {
-                                case ExceptionHandleType.success:
-                                    goto success;
-                                case ExceptionHandleType.success_interrupt:
-                                    goto interrupt;
-                                case ExceptionHandleType.success_end:
-                                    goto end;
-                                case ExceptionHandleType.@throw:
-                                    throw;
-                                case ExceptionHandleType.skip:
-                                    continue;
-                                default:
-                                    throw;
-                            }
+                            eventExceptionHandle.doCatch(this, eventTrigger, @event, e);
                         }
                     }
 
@@ -276,20 +260,60 @@ namespace Til.EventBus {
                     }
 
                     if (enumerator != null) {
-                        while (enumerator.MoveNext()) {
+                        while (true) {
+                            try {
+                                if (!enumerator.MoveNext()) {
+                                    break;
+                                }
+                            }
+                            catch (Exception e) {
+                                Console.WriteLine(e);
+                                throw;
+                            }
                             yield return enumerator.Current;
                         }
                         (enumerator as IDisposable)?.Dispose();
                     }
 
-                    success:
                     if (!@event.isContinue()) {
                         break;
                     }
                 }
             }
+            eventStack.Pop();
             deletionDetection();
-            end: ;
+        }
+
+        public async Task onEvent_task(Event @event) {
+            deletionDetection();
+            eventStack.Push(@event);
+            List<List<IEventTrigger>> runTimeBus = getRunTimeEventTrigger(@event.GetType());
+            foreach (var bus in runTimeBus) {
+                if (bus.Count == 0) {
+                    continue;
+                }
+                foreach (var eventTrigger in bus) {
+                    object? invoke = null;
+                    try {
+                        invoke = eventTrigger.invoke(@event);
+                        if (invoke is Task task) {
+                            await task;
+                        }
+                    }
+                    catch (Exception e) {
+                        getLog()?.Info($"处理事件{@event}时出现异常:", e);
+                        foreach (var eventExceptionHandle in eventBusRule.forEventExceptionHandle()) {
+                            eventExceptionHandle.doCatch(this, eventTrigger, @event, e);
+                        }
+                    }
+
+                    if (!@event.isContinue()) {
+                        break;
+                    }
+                }
+            }
+            eventStack.Pop();
+            deletionDetection();
         }
 
         protected void removeProtected(object registered) {
@@ -334,5 +358,7 @@ namespace Til.EventBus {
         public ILog? getLog() => log;
 
         public void setLog(ILog _log) => log = _log;
+
     }
+
 }

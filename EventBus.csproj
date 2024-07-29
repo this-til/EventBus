@@ -8,7 +8,7 @@
 
         <PackageId>Til.EventBus</PackageId>
         <Authors>cavpollo</Authors>
-        <Version>1.2.1</Version>
+        <Version>1.2.2</Version>
         <Authors>til</Authors>
         <description>一个简单高效的事件总线</description>
         <PackageLicenseFile>LICENSE</PackageLicenseFile>
