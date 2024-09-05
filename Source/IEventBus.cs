@@ -101,7 +101,7 @@ namespace Til.EventBus {
             if (allRegistered.Contains(registered)) {
                 log?.Info($"{registered}重复的注册");
             }
-            foreach (var eventRegistrantFilter in eventBusRule.forEventRegistrantFilter()) {
+            foreach (IEventRegistrantFilter? eventRegistrantFilter in eventBusRule.forEventRegistrantFilter()) {
                 if (eventRegistrantFilter.isFilter(this, registered)) {
                     log?.Info($"{registered}被{eventRegistrantFilter}过滤掉了");
                     return;
@@ -112,7 +112,7 @@ namespace Til.EventBus {
             BindingFlags bindingFlags = BindingFlags.Public | BindingFlags.NonPublic;
             bindingFlags |= registered is Type ? BindingFlags.Static : BindingFlags.Instance;
             Type registeredType = registered is Type ? (Type)registered : registered.GetType();
-            foreach (var methodInfo in registeredType.GetMethods(bindingFlags)) {
+            foreach (MethodInfo methodInfo in registeredType.GetMethods(bindingFlags)) {
                 ParameterInfo[] parameterInfos = methodInfo.GetParameters();
                 if (parameterInfos.Length != 1) {
                     continue;
@@ -123,7 +123,7 @@ namespace Til.EventBus {
                 EventAttribute? eventAttribute = methodInfo.GetCustomAttribute<EventAttribute>();
                 Type eventType = parameterInfos[0].ParameterType;
 
-                foreach (var eventTriggerFilter in eventBusRule.forEventTriggerFilter()) {
+                foreach (IEventTriggerFilter? eventTriggerFilter in eventBusRule.forEventTriggerFilter()) {
                     if (eventTriggerFilter.isFilter(this, registered, registeredType, eventType, methodInfo, eventAttribute)) {
                         log?.Info($"{registered}中{methodInfo}被{eventTriggerFilter}过滤掉了");
                         goto end;
@@ -137,13 +137,13 @@ namespace Til.EventBus {
                     log?.Warn($"{registered}中{methodInfo}返回值不是{typeof(void)},{typeof(IEnumerable)},{typeof(IEnumerator)},但他不会被拍抛弃");
                 }*/
 
-                if (!eventBus.TryGetValue(eventType, out var list)) {
+                if (!eventBus.TryGetValue(eventType, out List<IEventTrigger>? list)) {
                     list = new List<IEventTrigger>();
                     eventBus.Add(eventType, list);
                 }
 
                 IEventTrigger? newEventTrigger = null;
-                foreach (var eventTriggerFactory in eventBusRule.forEventTriggerFactory()) {
+                foreach (IEventTriggerFactory? eventTriggerFactory in eventBusRule.forEventTriggerFactory()) {
                     newEventTrigger = eventTriggerFactory.create(this, registered, eventType, methodInfoReturnType, methodInfo, eventAttribute);
                     if (newEventTrigger != null) {
                         break;
@@ -155,7 +155,7 @@ namespace Til.EventBus {
                 }
 
                 bool needInsert = true;
-                for (var index = 0; index < list.Count; index++) {
+                for (int index = 0; index < list.Count; index++) {
                     IEventTrigger eventTrigger = list[index];
                     if (eventTrigger.getEventPriority() >= newEventTrigger.getEventPriority()) {
                         continue;
@@ -175,18 +175,18 @@ namespace Til.EventBus {
             if (removeRegisteredSet.Count <= 0) {
                 return;
             }
-            foreach (var registered in removeRegisteredSet) {
+            foreach (object? registered in removeRegisteredSet) {
                 removeProtected(registered);
             }
             removeRegisteredSet.Clear();
         }
 
         protected List<List<IEventTrigger>> getRunTimeEventTrigger(Type eventType) {
-            if (!runTimeEventBus.TryGetValue(eventType, out var runTimeBus)) {
+            if (!runTimeEventBus.TryGetValue(eventType, out List<List<IEventTrigger>>? runTimeBus)) {
                 IList<Type> can = eventType.getParents();
                 runTimeBus = new List<List<IEventTrigger>>(can.Count);
-                foreach (var type in can) {
-                    if (!eventBus.TryGetValue(type, out var bus)) {
+                foreach (Type? type in can) {
+                    if (!eventBus.TryGetValue(type, out List<IEventTrigger>? bus)) {
                         bus = new List<IEventTrigger>();
                         eventBus.Add(type, bus);
                     }
@@ -203,17 +203,17 @@ namespace Til.EventBus {
             List<List<IEventTrigger>> runTimeBus = getRunTimeEventTrigger(@event.GetType());
             eventStack.Push(@event);
 
-            foreach (var bus in runTimeBus) {
+            foreach (List<IEventTrigger>? bus in runTimeBus) {
                 if (bus.Count == 0) {
                     continue;
                 }
-                foreach (var eventTrigger in bus) {
+                foreach (IEventTrigger? eventTrigger in bus) {
                     try {
                         eventTrigger.invoke(@event);
                     }
                     catch (Exception e) {
                         getLog()?.Info($"处理事件{@event}时出现异常:", e);
-                        foreach (var eventExceptionHandle in eventBusRule.forEventExceptionHandle()) {
+                        foreach (IEventExceptionHandle? eventExceptionHandle in eventBusRule.forEventExceptionHandle()) {
                             eventExceptionHandle.doCatch(this, eventTrigger, @event, e);
                         }
                     }
@@ -233,18 +233,18 @@ namespace Til.EventBus {
             deletionDetection();
             eventStack.Push(@event);
             List<List<IEventTrigger>> runTimeBus = getRunTimeEventTrigger(@event.GetType());
-            foreach (var bus in runTimeBus) {
+            foreach (List<IEventTrigger>? bus in runTimeBus) {
                 if (bus.Count == 0) {
                     continue;
                 }
-                foreach (var eventTrigger in bus) {
+                foreach (IEventTrigger? eventTrigger in bus) {
                     object? invoke = null;
                     try {
                         invoke = eventTrigger.invoke(@event);
                     }
                     catch (Exception e) {
                         getLog()?.Info($"处理事件{@event}时出现异常:", e);
-                        foreach (var eventExceptionHandle in eventBusRule.forEventExceptionHandle()) {
+                        foreach (IEventExceptionHandle? eventExceptionHandle in eventBusRule.forEventExceptionHandle()) {
                             eventExceptionHandle.doCatch(this, eventTrigger, @event, e);
                         }
                     }
@@ -288,11 +288,11 @@ namespace Til.EventBus {
             deletionDetection();
             eventStack.Push(@event);
             List<List<IEventTrigger>> runTimeBus = getRunTimeEventTrigger(@event.GetType());
-            foreach (var bus in runTimeBus) {
+            foreach (List<IEventTrigger>? bus in runTimeBus) {
                 if (bus.Count == 0) {
                     continue;
                 }
-                foreach (var eventTrigger in bus) {
+                foreach (IEventTrigger? eventTrigger in bus) {
                     object? invoke = null;
                     try {
                         invoke = eventTrigger.invoke(@event);
@@ -302,7 +302,7 @@ namespace Til.EventBus {
                     }
                     catch (Exception e) {
                         getLog()?.Info($"处理事件{@event}时出现异常:", e);
-                        foreach (var eventExceptionHandle in eventBusRule.forEventExceptionHandle()) {
+                        foreach (IEventExceptionHandle? eventExceptionHandle in eventBusRule.forEventExceptionHandle()) {
                             eventExceptionHandle.doCatch(this, eventTrigger, @event, e);
                         }
                     }
@@ -318,9 +318,9 @@ namespace Til.EventBus {
 
         protected void removeProtected(object registered) {
             allRegistered.Remove(registered);
-            foreach (var keyValuePair in eventBus) {
+            foreach (KeyValuePair<Type, List<IEventTrigger>> keyValuePair in eventBus) {
                 List<IEventTrigger> eventTriggers = keyValuePair.Value;
-                for (var index = 0; index < eventTriggers.Count; index++) {
+                for (int index = 0; index < eventTriggers.Count; index++) {
                     IEventTrigger eventTrigger = eventTriggers[index];
                     if (!registered.Equals(eventTrigger.getEventRegistrant())) {
                         continue;

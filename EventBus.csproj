@@ -21,6 +21,7 @@
         <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
         <GenerateDocumentationFile>true</GenerateDocumentationFile>
         <EnablePackageValidation>true</EnablePackageValidation>
+        <NoWarn>CS1591</NoWarn>
     </PropertyGroup>
 
 
