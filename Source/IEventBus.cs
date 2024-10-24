@@ -110,8 +110,12 @@ namespace Til.EventBus {
 
             allRegistered.Add(registered);
             BindingFlags bindingFlags = BindingFlags.Public | BindingFlags.NonPublic;
-            bindingFlags |= registered is Type ? BindingFlags.Static : BindingFlags.Instance;
-            Type registeredType = registered is Type ? (Type)registered : registered.GetType();
+            bindingFlags |= registered is Type
+                ? BindingFlags.Static
+                : BindingFlags.Instance;
+            Type registeredType = registered is Type
+                ? (Type)registered
+                : registered.GetType();
             foreach (MethodInfo methodInfo in registeredType.GetMethods(bindingFlags)) {
                 ParameterInfo[] parameterInfos = methodInfo.GetParameters();
                 if (parameterInfos.Length != 1) {
@@ -267,8 +271,10 @@ namespace Til.EventBus {
                                 }
                             }
                             catch (Exception e) {
-                                Console.WriteLine(e);
-                                throw;
+                                getLog()?.Info($"处理事件{@event}时出现异常:", e);
+                                foreach (IEventExceptionHandle? eventExceptionHandle in eventBusRule.forEventExceptionHandle()) {
+                                    eventExceptionHandle.doCatch(this, eventTrigger, @event, e);
+                                }
                             }
                             yield return enumerator.Current;
                         }
